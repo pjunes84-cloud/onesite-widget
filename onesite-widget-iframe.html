@@ -31,7 +31,7 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border-bottom:1p
 </main>
 <script>
 const qs=(k)=>new URLSearchParams(location.search).get(k);
-const API=qs('api')||''; const $=(q)=>document.querySelector(q);
+const API='https://onesite-backend.onrender.com'; const $=(q)=>document.querySelector(q);
 const tableBody=$("#fmtTable tbody"); const probeBtn=$("#probeBtn"), dlBtn=$("#dlBtn"), capBtn=$("#capBtn");
 const urlInput=$("#url"); let cachedFormats=[], selectedId=null;
 async function postJSON(path, body){
