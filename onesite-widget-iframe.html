@@ -31,42 +31,87 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border-bottom:1p
 </main>
 <script>
 const qs=(k)=>new URLSearchParams(location.search).get(k);
-const API='https://onesite-backend.onrender.com'; const $=(q)=>document.querySelector(q);
-const tableBody=$("#fmtTable tbody"); const probeBtn=$("#probeBtn"), dlBtn=$("#dlBtn"), capBtn=$("#capBtn");
+const API='https://onesite-backend.onrender.com';   // ← 하드코딩 고정
+
+const $=(q)=>document.querySelector(q);
+const tableBody=$("#fmtTable tbody");
+const probeBtn=$("#probeBtn"), dlBtn=$("#dlBtn"), capBtn=$("#capBtn");
 const urlInput=$("#url"); let cachedFormats=[], selectedId=null;
+
+// ★ 네트워크/프리플라이트 이슈를 더 확실히 보기 위한 fetch 옵션 + 상세 에러 출력
 async function postJSON(path, body){
-  const r=await fetch((API||'')+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  if(!r.ok) throw new Error(await r.text());
-  return r.headers.get('content-type')?.includes('application/json') ? r.json() : r.blob();
+  try{
+    const r=await fetch(API+path, {
+      method:'POST',
+      mode:'cors',
+      cache:'no-store',
+      referrerPolicy:'no-referrer',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+    });
+    if(!r.ok){
+      const txt=await r.text().catch(()=>r.statusText);
+      throw new Error(`HTTP ${r.status} ${r.statusText} :: ${txt.slice(0,200)}`);
+    }
+    return r.headers.get('content-type')?.includes('application/json') ? r.json() : r.blob();
+  }catch(e){
+    console.error('[postJSON error]', e);
+    throw e;
+  }
 }
+
 function renderFormats(list){
-  $("#formatsBox").style.display='block'; tableBody.innerHTML=''; cachedFormats=list;
-  list.forEach((f,i)=>{ const tr=document.createElement('tr');
+  $("#formatsBox").style.display='block'; tableBody.innerHTML='';
+  cachedFormats=list;
+  list.forEach((f,i)=>{
+    const tr=document.createElement('tr');
     tr.innerHTML=`<td><input type="radio" name="fmt" value="${f.format_id}" ${i===0?'checked':''}></td>
       <td>${f.format_id}</td><td>${f.resolution||''}</td>
       <td>${(f.vcodec||'')}/${(f.acodec||'')}</td><td>${f.tbr||''}</td>`;
-    tableBody.appendChild(tr); }); selectedId=list[0]?.format_id||'18';
+    tableBody.appendChild(tr);
+  });
+  selectedId=list[0]?.format_id||'18';
 }
-document.addEventListener('change',e=>{ if(e.target.name==='fmt') selectedId=e.target.value; });
-probeBtn.onclick=async()=>{ try{
-  const url=urlInput.value.trim(); if(!url) return alert('URL을 입력하세요');
-  const data=await postJSON('/api/probe',{url});
-  const list=(data.formats||[]).sort((a,b)=>{
-    const ra=+(a.resolution?.split('x')[1]||0), rb=+(b.resolution?.split('x')[1]||0);
-    const ta=+(a.tbr||0), tb=+(b.tbr||0); return (rb-ra)||(tb-ta);
-  }).slice(0,20); renderFormats(list);
-} catch(e){ alert('탐색 실패: '+e.message); } };
-dlBtn.onclick=async()=>{ try{
-  const url=urlInput.value.trim(); if(!url) return alert('URL을 입력하세요');
-  const fmt=selectedId||'18'; const blob=await postJSON('/api/download',{url,format_id:fmt});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='video.mp4';
-  document.body.appendChild(a); a.click(); a.remove();
-} catch(e){ alert('다운로드 실패: '+e.message); } };
-capBtn.onclick=async()=>{ try{
-  const url=urlInput.value.trim(); if(!url) return alert('URL을 입력하세요');
-  const data=await postJSON('/api/captions',{url});
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='captions.json';
-  document.body.appendChild(a); a.click(); a.remove();
-} catch(e){ alert('자막 추출 실패: '+e.message); } };
-</script></body></html>
+
+document.addEventListener('change',e=>{
+  if(e.target.name==='fmt') selectedId=e.target.value;
+});
+
+probeBtn.onclick=async()=>{
+  try{
+    const url=urlInput.value.trim(); if(!url) return alert('URL을 입력하세요');
+    console.log('[UI] probe start', {API, url});
+    const data=await postJSON('/api/probe',{url});
+    console.log('[UI] probe OK', data.title);
+    const list=(data.formats||[]).sort((a,b)=>{
+      const ra=+(a.resolution?.split('x')[1]||0), rb=+(b.resolution?.split('x')[1]||0);
+      const ta=+(a.tbr||0), tb=+(b.tbr||0);
+      return (rb-ra)||(tb-ta);
+    }).slice(0,20);
+    renderFormats(list);
+  }catch(e){ alert('탐색 실패: '+e.message); }
+};
+
+dlBtn.onclick=async()=>{
+  try{
+    const url=urlInput.value.trim(); if(!url) return alert('URL을 입력하세요');
+    const fmt=selectedId||'18';
+    console.log('[UI] download start', {fmt});
+    const blob=await postJSON('/api/download',{url,format_id:fmt});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download='video.mp4';
+    document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){ alert('다운로드 실패: '+e.message); }
+};
+
+capBtn.onclick=async()=>{
+  try{
+    const url=urlInput.value.trim(); if(!url) return alert('URL을 입력하세요');
+    const data=await postJSON('/api/captions',{url});
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download='captions.json';
+    document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){ alert('자막 추출 실패: '+e.message); }
+};
+</script>
