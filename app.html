@@ -41,28 +41,34 @@
 <script>
   const API = 'https://onesite-backend.onrender.com';
   const $ = (q)=>document.querySelector(q);
-  const urlInput=$("#url");
-  const probeBtn=$("#probeBtn"), saveBtn=$("#saveBtn"), capBtn=$("#capBtn");
+  const urlInput = $("#url");
+  const probeBtn = $("#probeBtn"), saveBtn = $("#saveBtn"), capBtn = $("#capBtn");
   const tableBody = $("#fmtTable tbody");
   let selectedId = null;
 
-  async function getJSON(url){
-    const r = await fetch(url, { method:'GET', mode:'cors', cache:'no-store' });
+  async function postJSON(path, body, expect='json'){
+    const r = await fetch(API + path, {
+      method: 'POST',
+      mode: 'cors',
+      cache: 'no-store',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
     if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
-    return r.json();
+    return expect === 'json' ? r.json() : r.blob();
   }
 
   function render(list){
-    $("#formatsBox").style.display='block';
+    document.querySelector("#formatsBox").style.display='block';
     tableBody.innerHTML='';
     list.forEach((f,i)=>{
       const tr=document.createElement('tr');
       tr.innerHTML = `
         <td><input type="radio" name="fmt" value="${f.format_id}" ${i===0?'checked':''}></td>
         <td>${f.format_id}</td>
-        <td>${f.resolution || ''}</td>
+        <td>${f.resolution||''}</td>
         <td>${(f.vcodec||'')}/${(f.acodec||'')}</td>
-        <td>${f.tbr || ''}</td>`;
+        <td>${f.tbr||''}</td>`;
       tableBody.appendChild(tr);
     });
     selectedId = list[0]?.format_id || '18';
@@ -72,12 +78,12 @@
     if (e.target.name === 'fmt') selectedId = e.target.value;
   });
 
-  // ✅ 탐색: GET /api/probe?url=...
+  // ✅ 탐색(POST)
   probeBtn.onclick = async ()=>{
     try{
       const url = urlInput.value.trim();
       if(!url) return alert('URL을 입력하세요');
-      const data = await getJSON(`${API}/api/probe?url=${encodeURIComponent(url)}`);
+      const data = await postJSON('/api/probe', { url }, 'json');
       const list = (data.formats||[])
         .filter(f => (f.ext||'').includes('mp4') || /22|18|137|136|135|134|133/.test(f.format_id))
         .sort((a,b)=>{
@@ -87,33 +93,34 @@
         }).slice(0,30);
       if (!list.length) alert('저장 가능한 포맷이 없습니다.');
       render(list);
-    }catch(e){ alert('탐색 실패: '+e.message); }
+    }catch(e){ alert('탐색 실패: ' + e.message); }
   };
 
-  // ✅ 저장(다운로드): a.href = GET /api/download?url=...&format_id=...
-  saveBtn.onclick = ()=>{
-    const url = urlInput.value.trim();
-    if(!url) return alert('URL을 입력하세요');
-    const fmt = selectedId || '18';
-    const a = document.createElement('a');
-    a.href = `${API}/api/download?url=${encodeURIComponent(url)}&format_id=${encodeURIComponent(fmt)}`;
-    a.download = 'video.mp4';
-    a.target = '_blank'; // 새 탭에서 다운로드 트리거
-    document.body.appendChild(a); a.click(); a.remove();
+  // ✅ 저장(POST) — blob 응답
+  saveBtn.onclick = async ()=>{
+    try{
+      const url = urlInput.value.trim();
+      if(!url) return alert('URL을 입력하세요');
+      const fmt = selectedId || '18';
+      const blob = await postJSON('/api/download', { url, format_id: fmt }, 'blob');
+      const a=document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'video.mp4';
+      document.body.appendChild(a); a.click(); a.remove();
+    }catch(e){ alert('저장 실패: ' + e.message); }
   };
 
-  // ✅ 자막 추출: GET /api/captions?url=...
+  // ✅ 자막(POST)
   capBtn.onclick = async ()=>{
     try{
       const url = urlInput.value.trim();
       if(!url) return alert('URL을 입력하세요');
-      const data = await getJSON(`${API}/api/captions?url=${encodeURIComponent(url)}`);
+      const data = await postJSON('/api/captions', { url }, 'json');
       const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
       const a=document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'captions.json';
       document.body.appendChild(a); a.click(); a.remove();
-    }catch(e){ alert('자막 추출 실패: '+e.message); }
+    }catch(e){ alert('자막 추출 실패: ' + e.message); }
   };
 </script>
-
