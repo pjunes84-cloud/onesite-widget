@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8">
+<title>probe POST test</title>
+<input id=url style="width:32em" placeholder="https://youtu.be/dQw4w9WgXcQ"
+       value="https://youtu.be/dQw4w9WgXcQ">
+<button id=b>POST /api/probe</button>
+<pre id=o>ready</pre>
+<script>
+const API='https://onesite-backend.onrender.com';
+const $=id=>document.getElementById(id);
+$('b').onclick=async()=>{
+  $('o').textContent='posting...';
+  try{
+    const r=await fetch(API+'/api/probe',{method:'POST',mode:'cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({url:$('url').value.trim()})});
+    $('o').textContent = (r.status)+' '+(await r.text()).slice(0,500);
+  }catch(e){ $('o').textContent='ERR '+e.message; }
+};
+</script>
