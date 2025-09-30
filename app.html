@@ -39,105 +39,81 @@
 </div>
 
 <script>
-  // ✅ 백엔드 API 고정
   const API = 'https://onesite-backend.onrender.com';
-
-  const $=(q)=>document.querySelector(q);
+  const $ = (q)=>document.querySelector(q);
   const urlInput=$("#url");
   const probeBtn=$("#probeBtn"), saveBtn=$("#saveBtn"), capBtn=$("#capBtn");
-  const tableBody=$("#fmtTable tbody");
-  let cachedFormats=[], selectedId=null;
+  const tableBody = $("#fmtTable tbody");
+  let selectedId = null;
 
-  // ✅ 공통 POST 헬퍼(오류 메시지 자세히)
-  async function postJSON(path, body){
-    try{
-      const r = await fetch(API+path, {
-        method:'POST',
-        mode:'cors',
-        cache:'no-store',
-        referrerPolicy:'no-referrer',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(body),
-      });
-      if(!r.ok){
-        const txt = await r.text().catch(()=>r.statusText);
-        throw new Error(`HTTP ${r.status} ${r.statusText} :: ${txt.slice(0,200)}`);
-      }
-      const ct=r.headers.get('content-type')||'';
-      return ct.includes('application/json') ? r.json() : r.blob();
-    }catch(e){
-      console.error('[postJSON error]', e);
-      throw e;
-    }
+  async function getJSON(url){
+    const r = await fetch(url, { method:'GET', mode:'cors', cache:'no-store' });
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
+    return r.json();
   }
 
-  function renderFormats(list){
+  function render(list){
     $("#formatsBox").style.display='block';
     tableBody.innerHTML='';
-    cachedFormats=list;
     list.forEach((f,i)=>{
       const tr=document.createElement('tr');
-      tr.innerHTML=`
+      tr.innerHTML = `
         <td><input type="radio" name="fmt" value="${f.format_id}" ${i===0?'checked':''}></td>
         <td>${f.format_id}</td>
-        <td>${f.resolution||''}</td>
+        <td>${f.resolution || ''}</td>
         <td>${(f.vcodec||'')}/${(f.acodec||'')}</td>
-        <td>${f.tbr||''}</td>`;
+        <td>${f.tbr || ''}</td>`;
       tableBody.appendChild(tr);
     });
-    selectedId=list[0]?.format_id||'18';
+    selectedId = list[0]?.format_id || '18';
   }
 
   document.addEventListener('change', e=>{
-    if(e.target.name==='fmt') selectedId=e.target.value;
+    if (e.target.name === 'fmt') selectedId = e.target.value;
   });
 
-  // 탐색
+  // ✅ 탐색: GET /api/probe?url=...
   probeBtn.onclick = async ()=>{
     try{
-      const url=urlInput.value.trim();
+      const url = urlInput.value.trim();
       if(!url) return alert('URL을 입력하세요');
-      console.log('[UI] probe start', url);
-      const data=await postJSON('/api/probe',{url});
-      console.log('[UI] probe OK', data.title);
-      const list=(data.formats||[])
+      const data = await getJSON(`${API}/api/probe?url=${encodeURIComponent(url)}`);
+      const list = (data.formats||[])
         .filter(f => (f.ext||'').includes('mp4') || /22|18|137|136|135|134|133/.test(f.format_id))
         .sort((a,b)=>{
           const ra=+(a.resolution?.split('x')[1]||0), rb=+(b.resolution?.split('x')[1]||0);
           const ta=+(a.tbr||0), tb=+(b.tbr||0);
           return (rb-ra)||(tb-ta);
         }).slice(0,30);
-      if(!list.length) alert('저장 가능한 포맷이 비어 있습니다.');
-      renderFormats(list);
+      if (!list.length) alert('저장 가능한 포맷이 없습니다.');
+      render(list);
     }catch(e){ alert('탐색 실패: '+e.message); }
   };
 
-  // 저장(다운로드 단어 회피)
-  saveBtn.onclick = async ()=>{
-    try{
-      const url=urlInput.value.trim();
-      if(!url) return alert('URL을 입력하세요');
-      const fmt=selectedId||'18';
-      console.log('[UI] save start', {fmt});
-      const blob=await postJSON('/api/download',{url, format_id:fmt});
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);
-      a.download='video.mp4';
-      document.body.appendChild(a); a.click(); a.remove();
-    }catch(e){ alert('저장 실패: '+e.message); }
+  // ✅ 저장(다운로드): a.href = GET /api/download?url=...&format_id=...
+  saveBtn.onclick = ()=>{
+    const url = urlInput.value.trim();
+    if(!url) return alert('URL을 입력하세요');
+    const fmt = selectedId || '18';
+    const a = document.createElement('a');
+    a.href = `${API}/api/download?url=${encodeURIComponent(url)}&format_id=${encodeURIComponent(fmt)}`;
+    a.download = 'video.mp4';
+    a.target = '_blank'; // 새 탭에서 다운로드 트리거
+    document.body.appendChild(a); a.click(); a.remove();
   };
 
-  // 자막 추출
+  // ✅ 자막 추출: GET /api/captions?url=...
   capBtn.onclick = async ()=>{
     try{
-      const url=urlInput.value.trim();
+      const url = urlInput.value.trim();
       if(!url) return alert('URL을 입력하세요');
-      const data=await postJSON('/api/captions',{url});
-      const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+      const data = await getJSON(`${API}/api/captions?url=${encodeURIComponent(url)}`);
+      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
       const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);
-      a.download='captions.json';
+      a.href = URL.createObjectURL(blob);
+      a.download = 'captions.json';
       document.body.appendChild(a); a.click(); a.remove();
     }catch(e){ alert('자막 추출 실패: '+e.message); }
   };
 </script>
+
