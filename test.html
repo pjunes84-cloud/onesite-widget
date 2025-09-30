@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8">
+<title>probe GET test</title>
+<button id=b>GET /health</button>
+<pre id=o>ready</pre>
+<script>
+const API='https://onesite-backend.onrender.com';
+const o = (t)=>document.getElementById('o').textContent = t;
+document.getElementById('b').onclick=async()=>{
+  try{
+    const r = await fetch(API + '/health', { mode:'cors', cache:'no-store' });
+    o((r.status)+' '+await r.text());
+  }catch(e){ o('ERR '+e.message); }
+};
+</script>
